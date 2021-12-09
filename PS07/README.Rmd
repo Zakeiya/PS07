@@ -1,0 +1,72 @@
+---
+title: "Mini Project 3"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(sf)
+```
+
+## Data
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+#importing data
+MBTA_commuter_rail_routes <- "trains/" %>% 
+  read_sf()
+MA_personal_income_by_county <- read_csv("Per capita personal income by county.csv") 
+
+#data wrangling 
+MA_avg_personal_income <- MA_personal_income_by_county %>% 
+  group_by(name) %>% 
+  mutate( 
+    income_averaged_by_years = (income_per_capita_2018 + income_per_capita_2019 + income_per_capita_2020)/3)
+
+MA_counties <- USAboundaries::us_counties(resolution = "low", states = c("massachusetts")) %>% 
+  select(-state_name)
+
+MA_counties_and_income <- MA_counties %>% 
+  inner_join(MA_avg_personal_income, by = "name") 
+
+MA_counties_and_income <- MA_counties_and_income%>%
+  mutate(
+    lon = purrr::map_dbl(geometry, ~st_centroid(.x)[[1]]),
+    lat = purrr::map_dbl(geometry, ~st_centroid(.x)[[2]]))
+```
+
+## MA Map
+
+
+```{r, echo=FALSE}
+#plots
+ggplot()+
+  geom_sf(data = MA_counties_and_income, 
+          aes(fill= income_averaged_by_years,
+          geometry = geometry), size = 0.01) +
+  scale_fill_gradient2(name = "Personal Income Per Capita",
+                       low = "#fff7fb", mid = "#74a9cf", high = "#023858", 
+                       midpoint = 85000, 
+                       space = "Lab",
+                       labels= paste0("$",c("50K", "67.5K", "85K", "102.5K", "120K")),
+                       breaks=c(50000, 67500, 85000, 102500, 120000),
+                       limits=c(50000,120000),
+                       guide = guide_colorbar(frame.colour = "black", frame.linewidth = 1,
+                                              ticks.colour = "black", ticks.linewidth = 1)) +
+  theme(legend.position = "bottom",
+        legend.key.size = unit(1, "cm"),
+        legend.title = element_text(size = 7),
+        legend.text = element_text(size = 7)) + 
+  geom_sf(data = MBTA_commuter_rail_routes, col = "red", size = 0.5, show.legend = "line") +
+  scale_color_manual(values = c("MBTA Commuter Rail Routes" = "red"), 
+                     labels = c("MBTA Commuter Rail Routes")) +
+  geom_text(data = MA_counties_and_income, 
+            aes(x = lon, y = lat, label = name)) +
+  labs(x = "Longitude", y = "Latitude")
+```
+```
+
